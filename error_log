@@ -1,0 +1,1 @@
+[27-Feb-2017 10:43:59 Asia/Jakarta] PHP Fatal error:  Class 'LINE\LINEBot\HTTPClient\CurlHTTPClient' not found in /home/universa/public_html/jadwal/application/controllers/Webhook.php on line 25
