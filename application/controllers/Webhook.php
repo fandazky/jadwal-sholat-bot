@@ -29,8 +29,6 @@ class Webhook extends CI_Controller {
   	public function index() {
 	    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	      	echo "Hello Coders!";
-            $a = 2;
-            echo 'tes '.($a + 1);
 	      	header('HTTP/1.1 400 Only POST method allowed');
 	      	exit;
 	    } 
@@ -70,11 +68,11 @@ class Webhook extends CI_Controller {
 	        // save user data
 	        $this->tebakkode_m->saveUser($profile);
 	        // send welcome message
-	        $message = "Salam kenal, " . $profile['displayName'] . " (".$profile['userId'].")!\n";
+	        $message = "Assalamualaikum, " . $profile['displayName'] . "!\n";
 	        $message .= "Silakan kirim pesan \"JADWAL\" untuk mengecek jadwal sholat.";
 	        $textMessageBuilder = new TextMessageBuilder($message);
 	        $this->bot->pushMessage($event['source']['userId'], $textMessageBuilder);
-	        $stickerMessageBuilder = new StickerMessageBuilder(1, 3);
+	        $stickerMessageBuilder = new StickerMessageBuilder(1, 4);
 	        $this->bot->pushMessage($event['source']['userId'], $stickerMessageBuilder);
 	    }
 
@@ -130,6 +128,9 @@ class Webhook extends CI_Controller {
                 $message = "Silahkan pilih zona waktu.\n7 = WIB, 8 = WITA, 9 = WIT";
                 $messageBuilder = new TextMessageBuilder($message);
                 break;
+            case -1:
+                $message = "Masukkan format jawaban dengan benar!";
+                $messageBuilder = new TextMessageBuilder($message);
             default:
                 break;
         }
@@ -141,8 +142,14 @@ class Webhook extends CI_Controller {
 
     private function checkAnswer($message){
         $this->load->library('session');
+        $valid_answer = TRUE;
         switch ($this->user['number']) {
             case 1:
+                $answer_option = array(1,2,3,4,5,6,7,8);
+                if (!in_array($message, $answer_option)){
+                    $valid_answer = FALSE;
+                    break;
+                }
                 $old_param = $this->tebakkode_m->getOldParams($this->user['user_id']);
                 if ($old_param) {
                     $this->tebakkode_m->updateParamRequest($this->user['user_id'], 'method='.((int)$message - 1));
@@ -156,11 +163,21 @@ class Webhook extends CI_Controller {
                 $this->tebakkode_m->updateParamRequest($this->user['user_id'], $old_param['params'].'&address='.$city);
                 break;
             case 3:
+                if (!preg_match("/^([0-9]{2})-([0-9]{2})-([0-9]{4})$/", $message)) {
+                    $valid_answer = FALSE;
+                    break;
+                }
+
                 $raw_date = explode('-', $message);
                 $old_param = $this->tebakkode_m->getOldParams($this->user['user_id']);
                 $this->tebakkode_m->updateParamRequest($this->user['user_id'], $old_param['params'].'&day='.$raw_date[0].'&month='.$raw_date[1].'&year='.$raw_date[2]);
                 break;
             case 4:
+                $answer_option = array(7, 8, 9);
+                if (!in_array($message, $answer_option)){
+                    $valid_answer = FALSE;
+                    break;
+                }
                 $old_param = $this->tebakkode_m->getOldParams($this->user['user_id']);
                 $this->tebakkode_m->updateParamRequest($this->user['user_id'], $old_param['params'].'&timezone='.$message);
                 break;
@@ -168,15 +185,18 @@ class Webhook extends CI_Controller {
                 break;
         }
 
-        if($this->user['number'] < 4) {
+        if($this->user['number'] < 4 && $valid_answer) {
             $this->tebakkode_m->setUserProgress($this->user['user_id'], $this->user['number'] + 1);
             $this->sendQuestion($this->user['user_id'], $this->user['number'] + 1);
+        } elseif ($this->user['number'] < 4 && !$valid_answer) {
+            $this->sendQuestion($this->user['user_id'], -1);
         } else {
-            $message = "Jadwal sholat yang anda minta:\n";
             $this->load->library('Restclient');
 
             $api_params = $this->tebakkode_m->getOldParams($this->user['user_id']);
             $time_result = $this->restclient->get('http://ibacor.com/api/pray-times?'.$api_params['params']);
+            $time = date('j M Y', strtotime($time_result['data']['year']."-".$time_result['data']['month']."-".$time_result['data']['day']));
+            $message = "Jadwal sholat untuk daerah ".uchword($time_result['data']['address'])." pada ".$time.":\n";
             $results = $time_result['result'];
             foreach ($results as $key => $value) {
                 $message .= $key." : ".$value."\n";
